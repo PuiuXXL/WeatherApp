@@ -828,3 +828,30 @@ body {
   0%   { transform: translateX(0); }
   100% { transform: translateX(-50%); }
 }
+
+.location-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.location-controls input { flex: 1; min-width: 150px; }
+.location-controls input, .location-controls button, .location-results button {
+  color: var(--text-primary, #e0e7ff); background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(139,92,246,0.3); border-radius: 8px; padding: 10px 14px;
+  font: inherit;
+}
+.location-controls button, .location-results button { cursor: pointer; }
+.location-controls button:hover, .location-results button:hover { background: rgba(139,92,246,0.2); }
+.location-results { display: flex; flex-wrap: wrap; gap: 8px; }
+.location-results:empty { display: none; }
+#weather-status { color: var(--text-secondary, #c4b5fd); font-size: 14px; }
+.recommendation-days { display: grid; gap: 24px; line-height: 1.7; overflow-wrap: anywhere; }
+.recommendation-days h3, .recommendation-days h4 { font-weight: 600; color: #e0e7ff; }
+.recommendation-days h3 { font-size: 16px; }
+.recommendation-days h4 { margin-top: 12px; }
+.recommendation-days p, .recommendation-days li { font-size: 14px; color: var(--text-secondary, #c4b5fd); }
+.recommendation-days ol { list-style: decimal; padding-left: 22px; margin: 12px 0; }
+.recommendation-days a { color: #c4b5fd; text-decoration: underline; }
+.city-name { overflow-wrap: anywhere; }
+.temp-hero { white-space: nowrap; }
+@media (max-width: 480px) {
+  .location-controls input { flex-basis: 100%; }
+  .chatbot-card { gap: 12px; }
+  .chatbot-avatar { width: 40px; height: 40px; }
+}

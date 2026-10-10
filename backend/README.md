@@ -126,6 +126,18 @@ Apelul foloseste Responses API cu schema JSON stricta si `store: false`.
 Solicitam pentru azi un program detaliat (o iesire si optional seara acasa),
 iar pentru fiecare zi urmatoare exact o idee scurta, fara lista de obiecte.
 Interfata separa "Recomandari pentru azi" de "Idei pentru zilele urmatoare".
+Optiunile de acasa includ lectura, proiecte creative, puzzle/jocuri, invatare,
+muzica, gatit, albume foto si miscare usoara, plus film ca program optional
+de seara. Titlurile si itinerarele sunt distincte; mesele nu sunt o etapa
+obligatorie. Ordinea optiunilor variaza dupa data. AI-ul personalizeaza
+explicatiile dupa prognoza, localitate si orele disponibile, fara sa presupuna
+preferinte personale necunoscute.
+Campul `diversityKey` identifica categoria. Pentru zilele viitoare, validarea
+respinge o categorie folosita mai des decat o alternativa eligibila; un raspuns
+repetitiv produce `assistant.reason: repetitive_response` si un plan de baza
+variat. Si fara AI, planul prefera categoriile cel mai putin folosite si respecta
+intervalele fara suprapuneri. Cache-ul de 10 minute ramane activ: actualizarea
+aceluiasi context nu forteaza o noua generare sau un nou consum OpenAI.
 Daca modelul
 nu raspunde, nu respecta structura, cheia lipseste ori exista probleme de credit,
 se livreaza planul de baza si un motiv sanitizat, fara cheia sau raspunsuri brute.

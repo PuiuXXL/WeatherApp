@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Weather Match — AI-powered weather dashboard with dynamic animations, 7-day forecast, and personalized suggestions for Brașov, România." />
 
-  <title>Weather Match — Brașov</title>
+  <title>Weather Match</title>
 
   <!-- Tailwind CSS v3 CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -80,6 +80,16 @@
       <p id="current-date" class="text-sm text-white/35 hidden sm:block font-medium"></p>
     </header>
 
+    <form id="location-form" class="location-controls animate-in" role="search">
+      <label for="city-query" class="section-label">Oras</label>
+      <input id="city-query" name="city" type="search" placeholder="Cauta un oras" minlength="2" required autocomplete="off" />
+      <button type="submit">Cauta</button>
+      <button id="locate" type="button">Locatia mea</button>
+      <button id="refresh" type="button" aria-label="Actualizeaza" title="Actualizeaza">&#8635;</button>
+    </form>
+    <div id="location-results" class="location-results" aria-label="Rezultate cautare"></div>
+    <p id="weather-status" role="status" aria-live="polite"></p>
+
     <!-- ─── TOP SECTION: Two-column grid ─── -->
     <section class="grid grid-cols-1 md:grid-cols-5 gap-6">
 
@@ -101,9 +111,9 @@
 
         <!-- Weather icon + Temperature -->
         <div class="flex items-end gap-6">
-          <img id="current-weather-icon" class="hero-weather-icon" src="" alt="" />
+          <img id="current-weather-icon" class="hero-weather-icon" src="./src/assets/cloudy.svg" alt="" />
           <div class="flex flex-col gap-2">
-            <p id="current-temp" class="temp-hero">0°</p>
+            <p id="current-temp" class="temp-hero">--</p>
             <span id="current-weather-label" class="weather-pill">—</span>
           </div>
         </div>
@@ -175,7 +185,8 @@
               Smart Tip
             </span>
           </div>
-          <p id="chatbot-message" class="chatbot-text"></p>
+          <p id="chatbot-message" class="chatbot-text" role="status" aria-live="polite"></p>
+          <div id="recommendation-days" class="recommendation-days"></div>
         </div>
       </div>
     </section>
@@ -187,6 +198,6 @@
   </main>
 
   <!-- App Script -->
-  <script src="./script.js"></script>
+  <script type="module" src="./script.js"></script>
 </body>
 </html>

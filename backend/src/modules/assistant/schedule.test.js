@@ -44,3 +44,24 @@ test("late night never creates past or midnight-to-evening activities", () => {
   assert.equal(choices.length, 1);
   assert.equal(choices[0].interval, null);
 });
+
+test("offers distinct home activities and rotates their order between dates", () => {
+  const local = weather();
+  const today = buildDayChoices(local, "2026-10-10");
+  const tomorrow = buildDayChoices(local, "2026-10-11");
+  const home = tomorrow.filter((choice) => choice.activity.startsWith("home_"));
+  assert.equal(home.length, 8);
+  assert.equal(new Set(home.map((choice) => choice.diversityKey)).size, 8);
+  assert.equal(new Set(home.map((choice) => choice.title)).size, 8);
+  assert.notEqual(today[0].diversityKey, tomorrow[0].diversityKey);
+  assert.ok(home.every((choice) => !choice.place && choice.interval.start >= "2026-10-11T09:00"));
+});
+
+test("home activities use daily weather context without inventing weather", () => {
+  const local = weather();
+  local.daily = { time: ["2026-10-10"], temperature_2m_max: [6], precipitation_probability_max: [15] };
+  assert.ok(buildDayChoices(local, "2026-10-10")[0].reason.includes("6 C"));
+  local.daily.temperature_2m_max[0] = 20;
+  local.daily.precipitation_probability_max[0] = 80;
+  assert.ok(buildDayChoices(local, "2026-10-10")[0].reason.includes("80%"));
+});

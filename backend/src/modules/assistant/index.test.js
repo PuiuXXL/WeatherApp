@@ -76,6 +76,8 @@ test("sends structured OpenAI request, returns daily plan and reuses cache", asy
     const body = JSON.parse(options.body);
     assert.equal(body.store, false);
     assert.equal(body.text.format.strict, true);
+    assert.ok(body.instructions.includes("diversityKey"));
+    assert.ok(JSON.parse(body.input).days[1].choices.length >= 8);
     assert.equal(JSON.parse(body.input).hourlyToday.time.length, 24);
     assert.ok(!body.input.includes("test-key-not-a-secret"));
     return { ok: true, json: async () => ({ status: "completed", output: [
@@ -106,4 +108,50 @@ test("missing configuration and malformed responses preserve the basic plan", as
     status: "completed", output: [{ content: [{ type: "output_text", text: "{\"days\":[]}" }] }],
   }) }));
   assert.equal((await getAssistantPlan(fixture("Malformed test"))).assistant.reason, "invalid_response");
+});
+
+test("rejects repeated categories when an unused eligible activity exists", () => {
+  const context = fixture();
+  const plan = planFor(context);
+  const repeated = context.days[1].choices.find((choice) =>
+    choice.diversityKey === context.days[0].choices[0].diversityKey);
+  plan.days[1].suggestions[0].choiceId = repeated.id;
+  assert.throws(() => validateAssistantPlan(plan, context), /repetitive_response/);
+  context.days[1].choices = [repeated];
+  assert.equal(validateAssistantPlan(plan, context).length, 2);
+});
+
+test("fallback keeps seven cold days varied without verified destinations or AI", async (context) => {
+  configure(context, "");
+  const input = fixture("Cold week");
+  const { buildDayChoices } = await import("./schedule.js");
+  const dates = Array.from({ length: 7 }, (_, index) => `2026-10-${10 + index}`);
+  const forecast = { current: input.current, daily: {
+    time: dates, temperature_2m_max: dates.map(() => 6), precipitation_probability_max: dates.map(() => 80),
+  } };
+  input.days = dates.map((date) => ({ date, temperatureMin: 0, temperatureMax: 6,
+    choices: buildDayChoices(forecast, date),
+  }));
+  const result = await getAssistantPlan(input);
+  assert.equal(result.assistant.status, "fallback");
+  const suggestions = result.days.flatMap((day) => day.suggestions);
+  assert.equal(new Set(suggestions.map((item) => item.diversityKey)).size, suggestions.length);
+  assert.ok(suggestions.every((item) => !item.place));
+  const today = result.days[0].suggestions;
+  assert.equal(today.length, 2);
+  assert.ok(today[0].interval.end <= today[1].interval.start);
+});
+
+test("repetitive model output falls back to varied activities", async (context) => {
+  configure(context, "test-key-not-a-secret");
+  const input = fixture("Repetitive model test");
+  const plan = planFor(input);
+  plan.days[1].suggestions[0].choiceId = input.days[1].choices.find((choice) =>
+    choice.diversityKey === input.days[0].choices[0].diversityKey).id;
+  context.mock.method(globalThis, "fetch", async () => ({ ok: true, json: async () => ({
+    status: "completed", output: [{ content: [{ type: "output_text", text: JSON.stringify(plan) }] }],
+  }) }));
+  const result = await getAssistantPlan(input);
+  assert.equal(result.assistant.reason, "repetitive_response");
+  assert.notEqual(result.days[0].suggestions[0].diversityKey, result.days[1].suggestions[0].diversityKey);
 });

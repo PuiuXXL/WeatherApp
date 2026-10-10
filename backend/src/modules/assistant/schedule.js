@@ -14,6 +14,26 @@ function step(date, start, end, title) {
   return { ...interval(date, start, end), title };
 }
 
+const homeActivities = [
+  { key: "reading", title: "Lectura si o pauza de la ecrane", steps: ["Alege o carte si pregateste un colt linistit", "Citeste cateva capitole si noteaza ideile preferate"] },
+  { key: "creative", title: "Desen, colaj sau un mic proiect creativ", steps: ["Alege materialele pe care le ai deja", "Realizeaza un desen, un colaj sau o decoratiune simpla"] },
+  { key: "games", title: "Puzzle sau jocuri de societate", steps: ["Alege un puzzle ori un joc potrivit pentru timpul disponibil", "Joaca singur sau invita pe cineva, daca doresti"] },
+  { key: "learning", title: "Invata ceva nou printr-un proiect practic", steps: ["Alege o lectie scurta de limba straina sau o abilitate care te intereseaza", "Aplica lectia intr-un exercitiu si pastreaza rezultatul"] },
+  { key: "music", title: "Descopera un album si creeaza un playlist", steps: ["Alege un gen muzical pe care vrei sa il explorezi", "Asculta un album si adauga piesele preferate intr-un playlist"] },
+  { key: "cooking", title: "Un experiment culinar cu ingredientele de acasa", steps: ["Alege o reteta noua folosind ingredientele disponibile", "Gateste in ritmul tau si noteaza ce ai schimba data viitoare"] },
+  { key: "photos", title: "Creeaza un album cu fotografiile preferate", steps: ["Selecteaza fotografii dintr-o excursie sau din ultima luna", "Aranjeaza un album si adauga cateva amintiri in descrieri"] },
+  { key: "movement", title: "Miscare usoara si relaxare acasa", steps: ["Pregateste un spatiu liber si alege muzica potrivita", "Fa miscari usoare in ritmul tau, cu pauze, apoi relaxeaza-te"] },
+];
+
+function homeReason(forecast, date) {
+  const index = forecast.daily?.time.indexOf(date) ?? -1;
+  const maximum = forecast.daily?.temperature_2m_max[index];
+  const rain = forecast.daily?.precipitation_probability_max[index];
+  if (maximum != null && maximum < 12) return `Maxima de ${maximum} C favorizeaza o activitate confortabila in interior.`;
+  if (rain != null && rain >= 50) return `Probabilitatea zilnica de precipitatii este ${rain}%; activitatea nu depinde de ploaie.`;
+  return "O alternativa flexibila acasa, fara deplasari sau dependenta de vreme.";
+}
+
 export function buildDayChoices(forecast, date, destinations = []) {
   const now = forecast.current.time;
   const isToday = date === now.slice(0, 10);
@@ -56,7 +76,7 @@ export function buildDayChoices(forecast, date, destinations = []) {
       step(date, end, returnEnd, "Drum de intoarcere"),
     ];
     const { forecast: destinationForecast, ...publicPlace } = place;
-    choices.push({ id: `${date}-${place.id}`, title, activity: indoor ? "local_visit" : "local_outing",
+    choices.push({ id: `${date}-${place.id}`, title, activity: indoor ? "local_visit" : "local_outing", diversityKey: place.kind,
       interval: interval(date, departure - 15, returnEnd), itinerary,
       place: publicPlace, weather: {
         temperature: destinationForecast.hourly.temperature_2m[windowIndex],
@@ -69,21 +89,27 @@ export function buildDayChoices(forecast, date, destinations = []) {
   }
   const homeStart = Math.max(firstMinute, choices.length ? 19 * 60 : firstMinute);
   if (homeStart < 23 * 60) {
-    const end = Math.min(homeStart + 150, 23 * 60);
-    const mealEnd = Math.min(homeStart + 40, end);
-    choices.push({ id: `${date}-home`, title: homeStart < 17 * 60 ? "O masa simpla si timp pentru un proiect personal" : "Cina si o seara relaxata acasa", activity: "home_evening",
-      interval: interval(date, homeStart, end),
-      itinerary: [step(date, homeStart, mealEnd, "Pregateste o masa simpla"),
-        ...(end > mealEnd ? [step(date, mealEnd, end, homeStart < 17 * 60 ? "Un proiect creativ sau un joc de societate" : "Film sau joc de societate")] : [])],
-      place: null, weather: null, reason: "Un program flexibil acasa, fara dependenta de vreme.",
-    });
-    if (homeStart < 17 * 60 && isToday) choices.push({
-      id: `${date}-evening`, title: "Cina si film pentru incheierea zilei", activity: "home_evening",
-      interval: interval(date, 19 * 60, 21 * 60 + 30),
-      itinerary: [step(date, 19 * 60, 19 * 60 + 40, "Cina"),
-        step(date, 19 * 60 + 40, 21 * 60 + 30, "Film acasa")],
-      place: null, weather: null, reason: "Incheie ziua cu o masa si un film, fara deplasari.",
-    });
+    const end = Math.min(homeStart + 120, 23 * 60);
+    const preparationEnd = Math.min(homeStart + 15, end);
+    // Rotate equally suitable home options by date; the weekly planner tracks category reuse.
+    const rotation = Math.floor(Date.parse(`${date}T00:00:00Z`) / 86400000) % homeActivities.length;
+    const activities = [...homeActivities.slice(rotation), ...homeActivities.slice(0, rotation)];
+    for (const [index, activity] of activities.entries()) {
+      choices.push({ id: `${date}-home-${activity.key}`, title: activity.title,
+        activity: `home_${activity.key}`, diversityKey: activity.key,
+        interval: interval(date, homeStart, end),
+        itinerary: [step(date, homeStart, preparationEnd, activity.steps[0]),
+          ...(end > preparationEnd ? [step(date, preparationEnd, end, activity.steps[1])] : [])],
+        place: null, weather: null, reason: homeReason(forecast, date),
+      });
+      if (index === 0 && end <= 19 * 60 && isToday) choices.push({
+        id: `${date}-evening`, title: "O seara de film acasa", activity: "home_evening", diversityKey: "film",
+        interval: interval(date, 19 * 60, 21 * 60 + 30),
+        itinerary: [step(date, 19 * 60, 19 * 60 + 15, "Alege un film din sursele la care ai acces"),
+          step(date, 19 * 60 + 15, 21 * 60 + 30, "Vizionare si relaxare")],
+        place: null, weather: null, reason: "O activitate de seara acasa, fara deplasari.",
+      });
+    }
   }
   if (!choices.length) choices.push({ id: `${date}-rest`, title: "Odihna pentru seara tarzie", activity: "rest",
     interval: null, itinerary: [], place: null, weather: null,

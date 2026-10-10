@@ -3,44 +3,20 @@
    Particle systems, 3D tilt, animated counters, reactive UI
    ============================================================ */
 
-const ASSETS_PATH = './src/assets/';
+import { initializeApi } from './weather-api.js';
+
+const weatherIcons = {
+  sunny: new URL('./src/assets/sun.svg', import.meta.url).href,
+  cloudy: new URL('./src/assets/cloudy.svg', import.meta.url).href,
+  rain: new URL('./src/assets/rain.svg', import.meta.url).href,
+  snow: new URL('./src/assets/snow.png', import.meta.url).href,
+  thunder: new URL('./src/assets/thunder.png', import.meta.url).href,
+};
 
 function weatherIconPath(key) {
-  const map = {
-    sunny:  'sun.svg',
-    cloudy: 'cloudy.svg',
-    rain:   'rain.svg',
-    snow:   'snow.svg',
-    thunder:'thunder.svg',
-  };
-  return ASSETS_PATH + (map[key] || 'cloudy.svg');
+  return weatherIcons[key] || weatherIcons.cloudy;
 }
 
-// ============================================================
-//  MOCK DATA — simulates backend payload
-// ============================================================
-function getMockWeatherData() {
-  return {
-    current_location: "Brașov, România",
-    current_temp: 18,
-    current_weather: "cloudy",
-    humidity: 62,
-    wind_speed: 12,
-    feels_like: 16,
-    forecast_7_days: [
-      { day: "Mon", temp: 18, weather: "cloudy" },
-      { day: "Tue", temp: 20, weather: "sunny" },
-      { day: "Wed", temp: 22, weather: "sunny" },
-      { day: "Thu", temp: 15, weather: "rain"   },
-      { day: "Fri", temp: 14, weather: "rain"   },
-      { day: "Sat", temp: 24, weather: "sunny"  },
-      { day: "Sun", temp: 23, weather: "sunny"  },
-    ],
-    chatbot_suggestion:
-      "Vremea se strică joi și vineri, așa că îți recomand să vizitezi un muzeu indoor. " +
-      "Totuși, sâmbătă și duminică se anunță soare și 24°C, vremea ideală pentru o drumeție pe Tâmpa!",
-  };
-}
 
 // ============================================================
 //  PARTICLE SYSTEM — Canvas-based floating particles
@@ -211,6 +187,11 @@ function initCursorGlow() {
 //  ANIMATED TEMPERATURE COUNTER
 // ============================================================
 function animateCounter(el, target, duration = 1500) {
+  if (el.counterFrame) cancelAnimationFrame(el.counterFrame);
+  if (target == null) {
+    el.textContent = '--';
+    return;
+  }
   const start = performance.now();
   const from = 0;
 
@@ -222,10 +203,10 @@ function animateCounter(el, target, duration = 1500) {
     const current = Math.round(from + (target - from) * eased);
     el.textContent = current + '°';
 
-    if (progress < 1) requestAnimationFrame(tick);
+    if (progress < 1) el.counterFrame = requestAnimationFrame(tick);
   }
 
-  requestAnimationFrame(tick);
+  el.counterFrame = requestAnimationFrame(tick);
 }
 
 // ============================================================
@@ -269,19 +250,17 @@ function renderCurrentWeather(data) {
   const tempEl = document.getElementById('current-temp');
   animateCounter(tempEl, data.current_temp, 1800);
 
-  document.getElementById('current-weather-label').textContent = data.current_weather;
+  document.getElementById('current-weather-label').textContent = data.weather_label;
+  document.getElementById('current-date').textContent = data.date_label;
 
   const icon = document.getElementById('current-weather-icon');
   icon.src = weatherIconPath(data.current_weather);
-  icon.alt = data.current_weather;
+  icon.alt = data.weather_label;
 
   // Stat badges
-  if (data.humidity != null)
-    document.getElementById('stat-humidity').textContent = data.humidity + '%';
-  if (data.wind_speed != null)
-    document.getElementById('stat-wind').textContent = data.wind_speed + ' km/h';
-  if (data.feels_like != null)
-    document.getElementById('stat-feels').textContent = data.feels_like + '°';
+  document.getElementById('stat-humidity').textContent = data.humidity == null ? '--' : data.humidity + '%';
+  document.getElementById('stat-wind').textContent = data.wind_speed == null ? '--' : data.wind_speed + ' km/h';
+  document.getElementById('stat-feels').textContent = data.feels_like == null ? '--' : data.feels_like + '°';
 }
 
 // ============================================================
@@ -296,11 +275,18 @@ function renderForecastDayCards(forecast) {
     card.className = 'forecast-day-card animate-in';
     card.setAttribute('data-delay', String(i + 1));
 
-    card.innerHTML = `
-      <span class="day-name">${day.day}</span>
-      <img class="day-icon" src="${weatherIconPath(day.weather)}" alt="${day.weather}" />
-      <span class="day-temp">${day.temp}°</span>
-    `;
+    const name = document.createElement('span');
+    name.className = 'day-name';
+    name.textContent = day.day;
+    const icon = document.createElement('img');
+    icon.className = 'day-icon';
+    icon.src = weatherIconPath(day.weather);
+    icon.alt = day.label;
+    const temp = document.createElement('span');
+    temp.className = 'day-temp';
+    temp.textContent = day.temp == null ? '--' : `${day.temp}°`;
+    card.title = `Min: ${day.min ?? '--'} / Max: ${day.temp ?? '--'} °C`;
+    card.append(name, icon, temp);
 
     container.appendChild(card);
 
@@ -315,6 +301,7 @@ function renderForecastDayCards(forecast) {
 let tempChart = null;
 
 function renderChart(forecast) {
+  if (!window.Chart) return;
   const ctx = document.getElementById('forecast-chart').getContext('2d');
   const labels = forecast.map(d => d.day);
   const temps  = forecast.map(d => d.temp);
@@ -326,7 +313,7 @@ function renderChart(forecast) {
 
   if (tempChart) tempChart.destroy();
 
-  tempChart = new Chart(ctx, {
+  tempChart = new window.Chart(ctx, {
     type: 'line',
     data: {
       labels,
@@ -397,31 +384,6 @@ function renderChart(forecast) {
   });
 }
 
-// ============================================================
-//  CHATBOT — Enhanced typewriter with word highlighting
-// ============================================================
-function renderChatbotSuggestion(text) {
-  const el = document.getElementById('chatbot-message');
-  el.textContent = '';
-  el.classList.add('typing-cursor');
-
-  let i = 0;
-  const speed = 18;
-
-  function typeChar() {
-    if (i < text.length) {
-      el.textContent += text.charAt(i);
-      i++;
-      // Vary speed slightly for natural feel
-      const nextSpeed = speed + (Math.random() - 0.5) * 12;
-      setTimeout(typeChar, Math.max(8, nextSpeed));
-    } else {
-      el.classList.remove('typing-cursor');
-    }
-  }
-
-  setTimeout(typeChar, 1000);
-}
 
 // ============================================================
 //  WEATHER BACKGROUND ANIMATIONS
@@ -579,25 +541,11 @@ function getFormattedDate() {
 // ============================================================
 //  BOOTSTRAP — DOMContentLoaded
 // ============================================================
-document.addEventListener('DOMContentLoaded', () => {
+function bootstrap() {
   // Date display
   document.getElementById('current-date').textContent = getFormattedDate();
 
-  // Get mock data (replace with real backend call later)
-  const data = getMockWeatherData();
-
-  // 1. Render current weather with animated counter
-  renderCurrentWeather(data);
-
-  // 2. Chart + forecast cards
-  renderChart(data.forecast_7_days);
-  renderForecastDayCards(data.forecast_7_days);
-
-  // 3. Chatbot typewriter
-  renderChatbotSuggestion(data.chatbot_suggestion);
-
-  // 4. Weather background animations
-  setWeatherAnimation(data.current_weather);
+  initializeApi(updateWeather);
 
   // 5. Particle system
   const canvas = document.getElementById('particle-canvas');
@@ -611,7 +559,13 @@ document.addEventListener('DOMContentLoaded', () => {
   initCardTilt();
   initRippleEffect();
   initEntranceAnimations();
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootstrap, { once: true });
+} else {
+  bootstrap();
+}
 
 // ============================================================
 //  PUBLIC API — for backend integration
@@ -620,6 +574,5 @@ function updateWeather(data) {
   renderCurrentWeather(data);
   renderChart(data.forecast_7_days);
   renderForecastDayCards(data.forecast_7_days);
-  renderChatbotSuggestion(data.chatbot_suggestion);
   setWeatherAnimation(data.current_weather);
 }
