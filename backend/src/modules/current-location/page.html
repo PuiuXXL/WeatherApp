@@ -16,10 +16,19 @@
       #status { min-height: 48px; overflow-wrap: anywhere; }
       #temperature { font-size: 52px; margin: 12px 0; }
       #coordinates { color: #47605d; overflow-wrap: anywhere; }
+      #location-name { font-size: 22px; overflow-wrap: anywhere; margin-bottom: 4px; }
       dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; }
       dt, dd { margin: 0; padding: 8px 0; border-bottom: 1px solid #cbd7d3; }
       dd { text-align: right; }
       h2 { font-size: 20px; margin-top: 28px; }
+      h3 { font-size: 17px; margin: 4px 0; }
+      h4 { font-size: 16px; margin: 4px 0; }
+      #recommendations > section { margin-top: 24px; }
+      #recommendations > h3 { margin-top: 36px; }
+      .itinerary { padding-left: 24px; }
+      .itinerary li { padding: 8px 0; border-bottom: 1px solid #cbd7d3; overflow-wrap: anywhere; }
+      #recommendations article { padding: 16px 0; border-bottom: 1px solid #cbd7d3; }
+      #recommendations p { margin: 6px 0; overflow-wrap: anywhere; }
       table { width: 100%; border-collapse: collapse; font-size: 14px; }
       th, td { text-align: right; padding: 12px 4px; border-bottom: 1px solid #cbd7d3; }
       th:first-child, td:first-child { text-align: left; }
@@ -37,6 +46,7 @@
       </header>
       <p id="status" role="status" aria-live="polite"></p>
       <section id="weather" hidden aria-label="Vremea locala">
+        <h2 id="location-name"></h2>
         <p id="coordinates"></p>
         <p id="temperature"></p>
         <dl>
@@ -44,6 +54,9 @@
           <dt>Umiditate</dt><dd id="humidity"></dd>
           <dt>Vant</dt><dd id="wind"></dd>
         </dl>
+        <h2>Ce poti face</h2>
+        <p id="recommendations-status" role="status" aria-live="polite"></p>
+        <div id="recommendations"></div>
         <h2>Astazi, pe ore</h2>
         <table>
           <thead><tr><th scope="col">Ora</th><th scope="col">Temperatura</th><th scope="col">Ploaie</th></tr></thead>
@@ -56,7 +69,9 @@
         </table>
         <p><a id="api-link">Date meteo JSON</a></p>
       </section>
-      <footer>Date meteo: <a href="https://open-meteo.com/">Open-Meteo</a></footer>
+      <footer>Date meteo: <a href="https://open-meteo.com/">Open-Meteo</a>.
+        Locuri: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>.
+      </footer>
     </main>
   </body>
 </html>

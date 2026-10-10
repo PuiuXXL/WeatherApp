@@ -1,5 +1,11 @@
+import "./config.js";
 import http from "node:http";
 import { handleCurrentLocation } from "./modules/current-location/index.js";
+import { buildRecommendations } from "./modules/recommendations/index.js";
+import { findNearbyPlaces } from "./modules/places/index.js";
+import { getDrivingRoute } from "./modules/routes/index.js";
+import { resolveCoordinateLocation } from "./modules/location/index.js";
+import { buildAssistantContext, getAssistantPlan } from "./modules/assistant/index.js";
 
 const port = Number(process.env.PORT ?? 3000);
 const openMeteoForecastUrl = "https://api.open-meteo.com/v1/forecast";
@@ -19,6 +25,10 @@ const weatherParams = {
     "wind_gusts_10m",
   ].join(","),
   hourly: [
+    "apparent_temperature",
+    "is_day",
+    "uv_index",
+    "wind_gusts_10m",
     "temperature_2m",
     "relative_humidity_2m",
     "precipitation_probability",
@@ -75,8 +85,8 @@ function validateCoordinates(latitude, longitude) {
   return null;
 }
 
-async function fetchJson(url) {
-  const response = await fetch(url);
+async function fetchJson(url, signal) {
+  const response = await fetch(url, { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000) });
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
@@ -100,6 +110,9 @@ function normalizeLocation(location) {
     latitude: location.latitude,
     longitude: location.longitude,
     timezone: location.timezone,
+    displayName: [...new Set([location.name, location.admin1, location.country].filter(Boolean))].join(", "),
+    source: "Open-Meteo Geocoding",
+    status: "resolved",
   };
 }
 
@@ -114,7 +127,7 @@ async function findLocation(city, count = 1) {
   return data.results ?? [];
 }
 
-async function getForecast({ latitude, longitude, timezone }) {
+async function getForecast({ latitude, longitude, timezone, signal }) {
   const url = new URL(openMeteoForecastUrl);
   url.searchParams.set("latitude", String(latitude));
   url.searchParams.set("longitude", String(longitude));
@@ -124,7 +137,7 @@ async function getForecast({ latitude, longitude, timezone }) {
   url.searchParams.set("timezone", timezone ?? "auto");
   url.searchParams.set("forecast_days", "7");
 
-  return fetchJson(url);
+  return fetchJson(url, signal);
 }
 
 async function handleLocations(requestUrl, response) {
@@ -139,7 +152,7 @@ async function handleLocations(requestUrl, response) {
   sendJson(response, 200, { locations: locations.map(normalizeLocation) });
 }
 
-async function handleWeather(requestUrl, response) {
+async function handleWeather(requestUrl, response, recommendationsOnly = false) {
   const city = requestUrl.searchParams.get("city")?.trim();
   let latitude = getNumberParam(requestUrl.searchParams, "latitude");
   let longitude = getNumberParam(requestUrl.searchParams, "longitude");
@@ -165,18 +178,46 @@ async function handleWeather(requestUrl, response) {
     return;
   }
 
-  const forecast = await getForecast({
-    latitude,
-    longitude,
-    timezone: location?.timezone,
-  });
+  const [forecast, coordinateLocation] = await Promise.all([
+    getForecast({ latitude, longitude, timezone: location?.timezone }),
+    location ? Promise.resolve(null) : resolveCoordinateLocation(latitude, longitude, null),
+  ]);
+  location ??= { ...coordinateLocation, timezone: forecast.timezone };
+
+  if (recommendationsOnly) {
+    const places = await findNearbyPlaces(latitude, longitude);
+    const destinations = [];
+    const destinationDeadline = AbortSignal.timeout(20000);
+    // Bound external calls; check each destination's weather, not only the user's city.
+    for (const place of places.places.slice(0, 4)) {
+      if (destinationDeadline.aborted) break;
+      const route = await getDrivingRoute(location, place, destinationDeadline);
+      if (!route || route.durationMinutes > 90) continue;
+      try {
+        const destinationForecast = await getForecast({ latitude: place.latitude,
+          longitude: place.longitude, timezone: forecast.timezone, signal: destinationDeadline });
+        destinations.push({ ...place, route, forecast: destinationForecast });
+      } catch {
+        // An unverified destination must not be used to schedule an outing.
+      }
+    }
+    const plan = await getAssistantPlan(buildAssistantContext(forecast, location, destinations));
+    sendJson(response, 200, {
+      location,
+      generatedAt: new Date().toISOString(),
+      forecastTime: forecast.current.time,
+      timezone: forecast.timezone,
+      recommendations: buildRecommendations(forecast, places.parks),
+      sources: { weather: "Open-Meteo", places: "OpenStreetMap / Overpass", routes: "OSRM" },
+      placesStatus: places.status,
+      destinations: destinations.map(({ forecast: destinationForecast, ...place }) => place),
+      ...plan,
+    });
+    return;
+  }
 
   sendJson(response, 200, {
-    location: location ?? {
-      latitude,
-      longitude,
-      timezone: forecast.timezone,
-    },
+    location,
     units: {
       current: forecast.current_units,
       hourly: forecast.hourly_units,
@@ -218,6 +259,11 @@ const server = http.createServer(async (request, response) => {
 
     if (requestUrl.pathname === "/api/weather") {
       await handleWeather(requestUrl, response);
+      return;
+    }
+
+    if (requestUrl.pathname === "/api/recommendations") {
+      await handleWeather(requestUrl, response, true);
       return;
     }
 
