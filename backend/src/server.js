@@ -1,4 +1,5 @@
 import http from "node:http";
+import { handleCurrentLocation } from "./modules/current-location/index.js";
 
 const port = Number(process.env.PORT ?? 3000);
 const openMeteoForecastUrl = "https://api.open-meteo.com/v1/forecast";
@@ -206,6 +207,10 @@ const server = http.createServer(async (request, response) => {
   }
 
   try {
+    if (await handleCurrentLocation(requestUrl, response)) {
+      return;
+    }
+
     if (requestUrl.pathname === "/api/locations") {
       await handleLocations(requestUrl, response);
       return;
