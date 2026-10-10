@@ -1,5 +1,6 @@
 import "./config.js";
 import http from "node:http";
+import { parseGenerationOptions } from "./modules/assistant/variation.js";
 import { handleCurrentLocation } from "./modules/current-location/index.js";
 import { buildRecommendations } from "./modules/recommendations/index.js";
 import { findNearbyPlaces } from "./modules/places/index.js";
@@ -50,6 +51,7 @@ function sendJson(response, statusCode, data) {
     "Access-Control-Allow-Methods": "GET, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
     "Content-Type": "application/json",
+    "Cache-Control": "no-store",
   });
   response.end(JSON.stringify(data));
 }
@@ -153,6 +155,11 @@ async function handleLocations(requestUrl, response) {
 }
 
 async function handleWeather(requestUrl, response, recommendationsOnly = false) {
+  let generationOptions;
+  if (recommendationsOnly) {
+    try { generationOptions = parseGenerationOptions(requestUrl.searchParams); }
+    catch (error) { sendJson(response, 400, { message: error.message }); return; }
+  }
   const city = requestUrl.searchParams.get("city")?.trim();
   let latitude = getNumberParam(requestUrl.searchParams, "latitude");
   let longitude = getNumberParam(requestUrl.searchParams, "longitude");
@@ -201,7 +208,7 @@ async function handleWeather(requestUrl, response, recommendationsOnly = false) 
         // An unverified destination must not be used to schedule an outing.
       }
     }
-    const plan = await getAssistantPlan(buildAssistantContext(forecast, location, destinations));
+    const plan = await getAssistantPlan(buildAssistantContext(forecast, location, destinations, generationOptions));
     sendJson(response, 200, {
       location,
       generatedAt: new Date().toISOString(),

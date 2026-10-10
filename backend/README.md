@@ -136,8 +136,27 @@ Campul `diversityKey` identifica categoria. Pentru zilele viitoare, validarea
 respinge o categorie folosita mai des decat o alternativa eligibila; un raspuns
 repetitiv produce `assistant.reason: repetitive_response` si un plan de baza
 variat. Si fara AI, planul prefera categoriile cel mai putin folosite si respecta
-intervalele fara suprapuneri. Cache-ul de 10 minute ramane activ: actualizarea
-aceluiasi context nu forteaza o noua generare sau un nou consum OpenAI.
+intervalele fara suprapuneri.
+
+Fiecare actualizare a frontendului trimite un identificator `generation` nou,
+plus `previous` (JSON cu maximum sapte zile si sase ID-uri recente per zi).
+Istoricul ramane in browser, separat pentru fiecare zona de aproximativ 1 km;
+functioneaza intre reincarcari si intre instante backend Vercel. Cand exista
+alternative, optiunile recent afisate pentru aceeasi data sunt eliminate din
+schema trimisa AI-ului. Parametrii sunt validati, iar ordinea optiunilor ramase
+variaza dupa generare si coordonate. Cache-ul de 10 minute reuneste numai
+reincercarile aceluiasi context/identificator; o actualizare noua poate consuma
+un apel OpenAI nou. Limitele de generare existente raman active.
+
+AI-ul poate scrie titluri concrete pentru activitatile generale, in categoria
+aleasa; numele si titlurile destinatiilor verificate raman controlate de backend.
+Cand Overpass nu furnizeaza locuri, prognoza orara de la coordonatele selectate
+poate permite plimbare, fotografie sau observarea naturii intr-o zona publica
+cunoscuta. Aceste optiuni au `scope: local_area`, nu contin un loc numit sau o
+ruta inventata, si necesita lumina, temperatura resimtita 8-28 C, ploaie <=30%,
+UV <=5 si rafale <=40 km/h. Frigul, ploaia, furtuna sau intunericul pastreaza
+variantele indoor. Nu promitem activitati unice la infinit cand optiunile
+eligibile sunt epuizate.
 Daca modelul
 nu raspunde, nu respecta structura, cheia lipseste ori exista probleme de credit,
 se livreaza planul de baza si un motiv sanitizat, fara cheia sau raspunsuri brute.

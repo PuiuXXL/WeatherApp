@@ -19,12 +19,20 @@ function fixture(name = "Localitate test") {
 }
 
 function planFor(context) {
-  return { days: context.days.map((day, index) => ({
-    date: day.date, summary: "O zi potrivita pentru activitatile propuse.",
-    suggestions: day.choices.slice(0, index === 0 ? 2 : 1).map((choice) => ({
-      choiceId: choice.id, description: "Alege intervalul indicat in prognoza.", takeWith: ["O jacheta usoara"],
-    })),
-  })) };
+  const used = new Set();
+  return { days: context.days.map((day, index) => {
+    const first = day.choices.find(choice => !used.has(choice.diversityKey)) ?? day.choices[0];
+    const selected = [first];
+    if (index === 0 && first.interval) {
+      const second = day.choices.find(choice => choice.interval && choice.interval.start >= first.interval.end);
+      if (second) selected.push(second);
+    }
+    for (const choice of selected) used.add(choice.diversityKey);
+    return { date: day.date, summary: "O zi potrivita pentru activitatile propuse.",
+      suggestions: selected.map(choice => ({ choiceId: choice.id, title: choice.title,
+        description: "Alege intervalul indicat in prognoza.", takeWith: ["O jacheta usoara"] })),
+    };
+  }) };
 }
 
 function configure(context, key) {
@@ -58,8 +66,10 @@ test("validates day ownership, missing/duplicate dates and invented choices", ()
 
 test("rejects overlapping activities and keeps future days brief", () => {
   const context = fixture();
-  context.days[0].choices[1].interval = context.days[0].choices[0].interval;
-  assert.throws(() => validateAssistantPlan(planFor(context), context));
+  const overlapping = planFor(context);
+  const second = context.days[0].choices.find(choice => choice.id === overlapping.days[0].suggestions[1].choiceId);
+  second.interval = context.days[0].choices[0].interval;
+  assert.throws(() => validateAssistantPlan(overlapping, context));
   const other = fixture();
   const plan = planFor(other);
   plan.days[1].suggestions.push(plan.days[1].suggestions[0]);
@@ -154,4 +164,56 @@ test("repetitive model output falls back to varied activities", async (context) 
   const result = await getAssistantPlan(input);
   assert.equal(result.assistant.reason, "repetitive_response");
   assert.notEqual(result.days[0].suggestions[0].diversityKey, result.days[1].suggestions[0].diversityKey);
+});
+
+test("new generations exclude previous choices even without AI and keep location-specific weather", async (context) => {
+  configure(context, "");
+  const base = fixture("Location-specific test");
+  const { varyChoices } = await import("./variation.js");
+  const first = await getAssistantPlan(base);
+  const previousChoices = first.days.map(day => ({ date: day.date, ids: day.suggestions.map(item => item.id) }));
+  const next = { ...base, generation: "second-request", days: base.days.map(day => ({ ...day,
+    choices: varyChoices(day.choices, day.date, base.location, { variation: "second-request", previousChoices }),
+  })) };
+  const second = await getAssistantPlan(next);
+  for (const day of second.days) {
+    assert.ok(day.suggestions.every(item => !previousChoices.find(previous => previous.date === day.date).ids.includes(item.id)));
+  }
+});
+
+test("AI can write concrete titles, but cannot replace the verified destination title", () => {
+  const context = fixture();
+  const plan = planFor(context);
+  plan.days[0].suggestions[0].title = "Fotografiaza trei detalii de arhitectura din apropiere";
+  assert.equal(validateAssistantPlan(plan, context)[0].suggestions[0].title, plan.days[0].suggestions[0].title);
+  const choice = context.days[0].choices.find(item => item.id === plan.days[0].suggestions[0].choiceId);
+  choice.place = { name: "Muzeu verificat" };
+  assert.equal(validateAssistantPlan(plan, context)[0].suggestions[0].title, choice.title);
+  plan.days[0].suggestions[0].title = "";
+  assert.throws(() => validateAssistantPlan(plan, context), /invalid_response/);
+});
+
+test("different generation ids request new AI plans instead of returning the previous cached plan", async (context) => {
+  configure(context, "test-key-not-a-secret");
+  const first = { ...fixture("Fresh generation test"), generation: "first-request" };
+  let calls = 0;
+  context.mock.method(globalThis, "fetch", async (url, options) => {
+    calls += 1;
+    const input = JSON.parse(JSON.parse(options.body).input);
+    return { ok: true, json: async () => ({ status: "completed", output: [{ content: [
+      { type: "output_text", text: JSON.stringify(planFor(input)) },
+    ] }] }) };
+  });
+  const firstPlan = await getAssistantPlan(first);
+  assert.equal(firstPlan.assistant.status, "generated");
+  const { varyChoices } = await import("./variation.js");
+  const previousChoices = firstPlan.days.map(day => ({ date: day.date, ids: day.suggestions.map(item => item.id) }));
+  const second = { ...first, generation: "second-request", days: first.days.map(day => ({ ...day,
+    choices: varyChoices(day.choices, day.date, first.location, { variation: "second-request", previousChoices }),
+  })) };
+  const secondPlan = await getAssistantPlan(second);
+  assert.equal(secondPlan.assistant.status, "generated");
+  assert.notEqual(firstPlan.days[0].suggestions[0].id, secondPlan.days[0].suggestions[0].id);
+  await getAssistantPlan(second);
+  assert.equal(calls, 2);
 });

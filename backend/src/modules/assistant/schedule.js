@@ -34,7 +34,40 @@ function homeReason(forecast, date) {
   return "O alternativa flexibila acasa, fara deplasari sau dependenta de vreme.";
 }
 
-export function buildDayChoices(forecast, date, destinations = []) {
+function localChoices(forecast, date, firstMinute, location) {
+  const hourly = forecast.hourly;
+  if (!hourly?.time) return [];
+  const index = hourly.time.findIndex((time, index) => {
+    if (!time.startsWith(date) || minutes(time) < firstMinute || minutes(time) + 60 > 19 * 60) return false;
+    return [index, index + 1].every((sample, offset) =>
+      hourly.time[sample] === timestamp(date, minutes(time) + offset * 60) &&
+      hourly.is_day?.[sample] === 1 && [0, 1, 2, 3].includes(hourly.weather_code?.[sample]) &&
+      Number.isFinite(hourly.apparent_temperature?.[sample]) && hourly.apparent_temperature[sample] >= 8 && hourly.apparent_temperature[sample] <= 28 &&
+      Number.isFinite(hourly.precipitation_probability?.[sample]) && hourly.precipitation_probability[sample] <= 30 &&
+      Number.isFinite(hourly.wind_gusts_10m?.[sample]) && hourly.wind_gusts_10m[sample] <= 40 &&
+      Number.isFinite(hourly.uv_index?.[sample]) && hourly.uv_index[sample] <= 5);
+  });
+  if (index < 0) return [];
+  const start = minutes(hourly.time[index]);
+  const area = location?.name ? ` in ${location.name}` : " in apropiere";
+  return [
+    { key: "walking", title: `O plimbare pe strazile cunoscute${area}`, detail: "Plimbare intr-o zona cunoscuta, cu acces public" },
+    { key: "outdoor_photos", title: `Fotografie de arhitectura si detalii${area}`, detail: "Fotografiaza detalii ale cladirilor si strazilor din zone publice cunoscute" },
+    { key: "observation", title: `Observa natura din apropiere${area}`, detail: "Observa copacii, culorile si pasarile dintr-o zona publica cunoscuta" },
+  ].map((activity) => ({
+    id: `${date}-local-${activity.key}`, activity: `local_${activity.key}`, diversityKey: activity.key,
+    title: activity.title, interval: interval(date, start, start + 60),
+    itinerary: [step(date, start, start + 10, "Pregatire pentru o iesire scurta"),
+      step(date, start + 10, start + 50, activity.detail), step(date, start + 50, start + 60, "Intoarcere spre casa")],
+    place: null, scope: "local_area", weather: {
+      temperature: hourly.temperature_2m?.[index] ?? null, feelsLike: hourly.apparent_temperature[index],
+      precipitationProbability: hourly.precipitation_probability[index], source: "Open-Meteo", timezone: forecast.timezone,
+    },
+    reason: `Prognoza la locatia selectata indica ${hourly.apparent_temperature[index]} C resimtite si ${hourly.precipitation_probability[index]}% probabilitate de ploaie in intervalul ales. Zona concreta si accesul se aleg local; nu este un traseu verificat.`,
+  }));
+}
+
+export function buildDayChoices(forecast, date, destinations = [], location = null) {
   const now = forecast.current.time;
   const isToday = date === now.slice(0, 10);
   const firstMinute = isToday ? Math.ceil(minutes(now) / 15) * 15 : 9 * 60;
@@ -87,6 +120,7 @@ export function buildDayChoices(forecast, date, destinations = []) {
       reason: indoor ? "O oprire in interior; verifica programul inainte de plecare." : "Interval cu lumina naturala si conditii potrivite la destinatie.",
     });
   }
+  choices.push(...localChoices(forecast, date, firstMinute, location));
   const homeStart = Math.max(firstMinute, choices.length ? 19 * 60 : firstMinute);
   if (homeStart < 23 * 60) {
     const end = Math.min(homeStart + 120, 23 * 60);

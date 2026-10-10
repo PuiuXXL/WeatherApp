@@ -850,6 +850,26 @@ body {
 .recommendation-days a { color: #c4b5fd; text-decoration: underline; }
 .city-name { overflow-wrap: anywhere; }
 .temp-hero { white-space: nowrap; }
+.hourly-section { min-width: 0; padding: 24px 0; border-block: 1px solid var(--glass-border); }
+.hourly-heading-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.hourly-heading-row > div:first-child { min-width: 0; }
+.hourly-date { color: var(--text-muted); font-size: 12px; margin-top: 6px; overflow-wrap: anywhere; }
+.hourly-navigation { display: flex; gap: 8px; flex-shrink: 0; }
+.hourly-navigation button { width: 36px; height: 36px; border: 1px solid var(--glass-border); border-radius: 8px; background: var(--glass-bg); color: var(--text-primary); font-size: 20px; cursor: pointer; }
+.hourly-navigation button:hover:enabled { background: var(--glass-bg-hover); }
+.hourly-navigation button:disabled { opacity: 0.3; cursor: default; }
+.hourly-forecast { position: relative; display: flex; gap: 8px; max-width: 100%; overflow-x: auto; padding: 16px 0 10px; list-style: none; scrollbar-width: thin; scrollbar-color: rgba(139,92,246,0.5) transparent; }
+.hourly-forecast:empty { padding: 0; }
+.hourly-item { flex: 0 0 78px; display: grid; grid-template-rows: 20px 32px 28px 18px; justify-items: center; align-items: center; gap: 10px; padding: 14px 6px; border-radius: 8px; border: 1px solid transparent; }
+.hourly-item time { font-size: 12px; color: var(--text-secondary); }
+.hourly-item strong { font-family: 'Outfit', sans-serif; font-size: 20px; }
+.hourly-item img { width: 32px; height: 32px; object-fit: contain; }
+.hourly-item.is-current { border-color: rgba(139,92,246,0.4); background: rgba(139,92,246,0.12); }
+.hourly-item.is-current time { color: #c4b5fd; font-weight: 700; }
+.hourly-item.is-past { opacity: 0.55; }
+.hourly-rain { color: #7dd3fc; font-size: 12px; }
+.hourly-moon { width: 26px; height: 26px; border-radius: 50%; box-shadow: inset 9px -4px 0 #e0e7ff; transform: rotate(-20deg); }
+.hourly-navigation button:focus-visible, .hourly-forecast:focus-visible { outline: 2px solid #c4b5fd; outline-offset: 3px; }
 @media (max-width: 480px) {
   .location-controls input { flex-basis: 100%; }
   .chatbot-card { gap: 12px; }

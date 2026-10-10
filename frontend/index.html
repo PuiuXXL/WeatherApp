@@ -160,6 +160,21 @@
       </div>
     </section>
 
+    <section class="hourly-section animate-in" data-delay="4" aria-labelledby="hourly-heading">
+      <div class="hourly-heading-row">
+        <div>
+          <h2 id="hourly-heading" class="font-outfit font-semibold text-lg">Prognoza orara pentru azi</h2>
+          <p id="hourly-date" class="hourly-date"></p>
+        </div>
+        <div class="hourly-navigation">
+          <button id="hourly-previous" type="button" aria-label="Orele anterioare" title="Orele anterioare" disabled>&larr;</button>
+          <button id="hourly-next" type="button" aria-label="Orele urmatoare" title="Orele urmatoare" disabled>&rarr;</button>
+        </div>
+      </div>
+      <p id="hourly-status" class="hourly-date" role="status">Prognoza se incarca dupa selectarea locatiei.</p>
+      <ul id="hourly-forecast" class="hourly-forecast" tabindex="0" aria-label="Prognoza pe ore; probabilitate de precipitatii in procente"></ul>
+    </section>
+
     <!-- ─── WAVE DIVIDER ─── -->
     <div class="wave-divider animate-in" data-delay="4">
       <svg viewBox="0 0 1200 40" preserveAspectRatio="none" fill="rgba(139,92,246,0.3)">

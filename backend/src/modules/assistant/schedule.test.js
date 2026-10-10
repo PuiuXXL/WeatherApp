@@ -53,15 +53,33 @@ test("offers distinct home activities and rotates their order between dates", ()
   assert.equal(home.length, 8);
   assert.equal(new Set(home.map((choice) => choice.diversityKey)).size, 8);
   assert.equal(new Set(home.map((choice) => choice.title)).size, 8);
-  assert.notEqual(today[0].diversityKey, tomorrow[0].diversityKey);
+  assert.notEqual(today.find(choice => choice.activity.startsWith("home_")).diversityKey, home[0].diversityKey);
   assert.ok(home.every((choice) => !choice.place && choice.interval.start >= "2026-10-11T09:00"));
 });
 
 test("home activities use daily weather context without inventing weather", () => {
   const local = weather();
   local.daily = { time: ["2026-10-10"], temperature_2m_max: [6], precipitation_probability_max: [15] };
-  assert.ok(buildDayChoices(local, "2026-10-10")[0].reason.includes("6 C"));
+  assert.ok(buildDayChoices(local, "2026-10-10").find(choice => choice.activity.startsWith("home_")).reason.includes("6 C"));
   local.daily.temperature_2m_max[0] = 20;
   local.daily.precipitation_probability_max[0] = 80;
-  assert.ok(buildDayChoices(local, "2026-10-10")[0].reason.includes("80%"));
+  assert.ok(buildDayChoices(local, "2026-10-10").find(choice => choice.activity.startsWith("home_")).reason.includes("80%"));
+});
+
+test("local outings use coordinates' hourly weather and location without inventing a destination", () => {
+  const forecast = weather();
+  const choices = buildDayChoices(forecast, "2026-10-10", [], { name: "Marisel" });
+  const local = choices.filter(choice => choice.scope === "local_area");
+  assert.equal(local.length, 3);
+  assert.ok(local.every(choice => choice.title.includes("Marisel") && choice.place === null));
+  assert.ok(local.every(choice => choice.interval.start >= forecast.current.time && choice.weather.feelsLike === 21));
+  assert.ok(local.every(choice => !choice.route));
+  forecast.hourly.precipitation_probability.fill(80);
+  assert.equal(buildDayChoices(forecast, "2026-10-10").filter(choice => choice.scope === "local_area").length, 0);
+  forecast.hourly.precipitation_probability.fill(10);
+  forecast.hourly.apparent_temperature.fill(2);
+  assert.equal(buildDayChoices(forecast, "2026-10-10").filter(choice => choice.scope === "local_area").length, 0);
+  forecast.hourly.apparent_temperature.fill(21);
+  forecast.hourly.is_day.fill(0);
+  assert.equal(buildDayChoices(forecast, "2026-10-10").filter(choice => choice.scope === "local_area").length, 0);
 });

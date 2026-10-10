@@ -4,6 +4,7 @@
    ============================================================ */
 
 import { initializeApi } from './weather-api.js';
+import { initializeHourlyForecast, renderHourlyForecast } from './hourly-forecast.js';
 
 const weatherIcons = {
   sunny: new URL('./src/assets/sun.svg', import.meta.url).href,
@@ -545,6 +546,7 @@ function bootstrap() {
   // Date display
   document.getElementById('current-date').textContent = getFormattedDate();
 
+  initializeHourlyForecast();
   initializeApi(updateWeather);
 
   // 5. Particle system
@@ -574,5 +576,6 @@ function updateWeather(data) {
   renderCurrentWeather(data);
   renderChart(data.forecast_7_days);
   renderForecastDayCards(data.forecast_7_days);
+  renderHourlyForecast(data, weatherIconPath);
   setWeatherAnimation(data.current_weather);
 }

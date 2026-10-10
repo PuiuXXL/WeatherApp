@@ -1,7 +1,10 @@
+import { recommendationParams, rememberRecommendations } from './recommendation-history.js';
+
 const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
 export async function fetchApi(path, params, signal, timeout = 25000) {
   const response = await fetch(`${apiBase}/api/${path}?${params}`, {
+    cache: 'no-store',
     signal: AbortSignal.any([signal, AbortSignal.timeout(timeout)]),
   });
   const data = await response.json();
@@ -36,6 +39,20 @@ export function adaptWeather(data) {
     humidity: current.relative_humidity_2m,
     wind_speed: current.wind_speed_10m,
     feels_like: rounded(current.apparent_temperature),
+    timezone: data.location?.timezone || '',
+    hourly_today: (data.hourly?.time || []).flatMap((time, index) => {
+      if (time.slice(0, 10) !== current.time.slice(0, 10)) return [];
+      const weather = weatherCondition(data.hourly.weather_code?.[index]);
+      return [{ time, hour: time.slice(11, 16),
+        temp: rounded(data.hourly.temperature_2m?.[index]),
+        rain: data.hourly.precipitation_probability?.[index] ?? null,
+        wind: data.hourly.wind_speed_10m?.[index] ?? null,
+        weather: weather.key, label: weather.label,
+        isNight: data.hourly.is_day?.[index] === 0,
+        isCurrent: time.slice(0, 13) === current.time.slice(0, 13),
+        isPast: time.slice(0, 13) < current.time.slice(0, 13),
+      }];
+    }),
     forecast_7_days: data.daily.time.map((date, i) => {
       const weather = weatherCondition(data.daily.weather_code[i]);
       return { day: dateLabel(date, { weekday: 'short' }), temp: rounded(data.daily.temperature_2m_max[i]),
@@ -133,8 +150,11 @@ export function initializeApi(renderWeather) {
       return;
     }
     try {
-      const recommendations = await fetchApi('recommendations', params, controller.signal, 110000);
-      if (!controller.signal.aborted) renderRecommendations(recommendations);
+      const recommendations = await fetchApi('recommendations', recommendationParams(params), controller.signal, 110000);
+      if (!controller.signal.aborted) {
+        renderRecommendations(recommendations);
+        rememberRecommendations(params, recommendations.days);
+      }
     } catch {
       if (!controller.signal.aborted) message.textContent = 'Recomandarile nu sunt disponibile momentan. Vremea ramane afisata.';
     }
